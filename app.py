@@ -4,8 +4,6 @@ import numpy as np
 import streamlit as st
 from streamlit_webrtc import VideoProcessorBase, webrtc_streamer
 import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
 
 # 1. Page Configuration
 st.set_page_config(
@@ -15,89 +13,112 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Custom CSS Styling (High Contrast & Visible Controls)
+# 2. Light & Sky-Blue Custom CSS Theme
 st.markdown("""
     <style>
+        /* Main background - Light Theme */
         .stApp {
-            background-color: #0E1117;
-            color: #FFFFFF;
+            background-color: #F4F8FA;
+            color: #1E293B;
         }
+        
+        /* Metric cards in Sky-Blue style */
         .metric-card {
-            background-color: #1E222D;
-            border-radius: 10px;
-            padding: 15px;
-            border: 1px solid #2E3440;
+            background-color: #FFFFFF;
+            border-radius: 12px;
+            padding: 16px;
+            border: 2px solid #BAE6FD;
             text-align: center;
-            color: #FFFFFF;
+            color: #0F172A;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         }
+        
+        /* Gradient Sky-Blue Title */
         .title-text {
             font-size: 2.2rem;
-            font-weight: 700;
-            background: -webkit-linear-gradient(45deg, #00FFA3, #00B8D9);
+            font-weight: 800;
+            background: -webkit-linear-gradient(45deg, #0284C7, #38BDF8);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+        
+        /* Info guide box - Sky Blue Accent */
         .info-box {
-            background-color: #1A2332;
-            border-left: 4px solid #00FFA3;
-            padding: 15px;
-            border-radius: 6px;
-            color: #FFFFFF !important;
+            background-color: #E0F2FE;
+            border-left: 5px solid #0284C7;
+            padding: 16px;
+            border-radius: 8px;
+            color: #0369A1 !important;
             font-size: 0.95rem;
-            line-height: 1.5;
+            line-height: 1.6;
             margin-bottom: 20px;
         }
-        /* Make WebRTC action buttons clearly visible */
+        
+        /* Visible Sky-Blue Action Button */
         div[data-testid="stActionButton"] button,
         .element-container button {
-            background-color: #00FFA3 !important;
-            color: #000000 !important;
+            background-color: #0284C7 !important;
+            color: #FFFFFF !important;
             font-weight: bold !important;
             border-radius: 8px !important;
-            padding: 10px 20px !important;
+            padding: 10px 24px !important;
+            border: none !important;
+        }
+        
+        div[data-testid="stActionButton"] button:hover {
+            background-color: #0369A1 !important;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Global Initialization (Pre-loads model & bindings at script startup)
+# 3. Model Buffer Downloader
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
 
 @st.cache_resource
-def initialize_global_landmarker():
+def get_model_buffer():
     req = urllib.request.urlopen(MODEL_URL)
-    model_buffer = req.read()
+    return req.read()
+
+# Safe initialization block
+GLOBAL_DETECTOR = None
+try:
+    from mediapipe.tasks import python
+    from mediapipe.tasks.python import vision
+
+    model_buffer = get_model_buffer()
     base_options = python.BaseOptions(model_asset_buffer=model_buffer)
     options = vision.FaceLandmarkerOptions(
         base_options=base_options,
         running_mode=vision.RunningMode.IMAGE,
         num_faces=1
     )
-    return vision.FaceLandmarker.create_from_options(options)
+    GLOBAL_DETECTOR = vision.FaceLandmarker.create_from_options(options)
+except Exception:
+    GLOBAL_DETECTOR = None
 
-# Initialize globally before WebRTC component spawns worker threads
-GLOBAL_DETECTOR = initialize_global_landmarker()
-
-# 4. WebRTC Frame Processor
+# 4. WebRTC Video Processor
 class EyeGazeProcessor(VideoProcessorBase):
     def __init__(self):
         self.detector = GLOBAL_DETECTOR
 
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
-        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         
-        result = self.detector.detect(mp_image)
+        if self.detector is not None:
+            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+            result = self.detector.detect(mp_image)
 
-        if result.face_landmarks:
-            h, w, _ = img.shape
-            for landmark in result.face_landmarks[0]:
-                cx, cy = int(landmark.x * w), int(landmark.y * h)
-                cv2.circle(img, (cx, cy), 1, (0, 255, 163), -1)
+            if result.face_landmarks:
+                h, w, _ = img.shape
+                for landmark in result.face_landmarks[0]:
+                    cx, cy = int(landmark.x * w), int(landmark.y * h)
+                    # Draw Sky-Blue tracking points
+                    cv2.circle(img, (cx, cy), 1, (248, 189, 56), -1)
 
         return frame.from_ndarray(img, format="bgr24")
 
-# 5. App Header Layout
+# 5. Header Layout
 col1, col2 = st.columns([1, 4])
 with col1:
     st.title("👁️")
@@ -107,25 +128,27 @@ with col2:
 
 st.markdown("---")
 
-# 6. High-Contrast Quick Start Guide
+# 6. Light Theme Quick Start Guide
 st.markdown("""
 <div class="info-box">
-    <strong style="color: #00FFA3;">📱 Quick Start Guide:</strong><br>
+    <strong>📱 Quick Start Guide:</strong><br>
     1. Position your face clearly in front of your device camera.<br>
     2. Click <strong>START</strong> below and grant camera permissions.<br>
     3. Ensure good lighting for optimal landmark detection accuracy.
 </div>
 """, unsafe_allow_html=True)
 
-# 7. Live WebRTC Streamer
+# 7. Live WebRTC Feed
 st.subheader("📹 Live Camera Feed")
+
+if GLOBAL_DETECTOR is None:
+    st.warning("⚠️ Streamlit Cloud is currently running Python 3.14. Please set Python Version to 3.11 in your App Settings under Manage App.")
 
 webrtc_streamer(
     key="gazemate-mobile-stream",
     video_processor_factory=EyeGazeProcessor,
     media_stream_constraints={
         "video": {
-            # Prefers selfie camera on mobile, falls back to default camera on PC/laptop
             "facingMode": {"ideal": "user"}
         },
         "audio": False
@@ -135,10 +158,10 @@ webrtc_streamer(
 
 st.markdown("---")
 
-# 8. Status Metrics Bar
+# 8. Metric Cards (Sky Blue / White Theme)
 m1, m2, m3 = st.columns(3)
 with m1:
-    st.markdown('<div class="metric-card"><strong>Status</strong><br><span style="color:#00FFA3;">Ready</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="metric-card"><strong>Status</strong><br><span style="color:#0284C7; font-weight: bold;">Ready</span></div>', unsafe_allow_html=True)
 with m2:
     st.markdown('<div class="metric-card"><strong>Platform</strong><br>Mobile Web</div>', unsafe_allow_html=True)
 with m3:
