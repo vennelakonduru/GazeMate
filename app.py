@@ -1,17 +1,19 @@
-import streamlit as st
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
 import cv2
 import mediapipe as mp
+import streamlit as st
+from streamlit_webrtc import VideoProcessorBase, webrtc_streamer
 
-st.title("GazeMate Mobile Web Tracking")
-st.write("Grant camera access to use eye tracking on your mobile browser.")
+# Direct import avoids dynamic namespace attribute errors on Streamlit Cloud
+from mediapipe.python.solutions.face_mesh import FaceMesh
 
-# Explicit sub-module import to prevent attribute errors
-mp_face_mesh = mp.solutions.face_mesh
+st.set_page_config(page_title="GazeMate Mobile", page_icon="👁️")
+st.title("👁️ GazeMate Mobile Web Tracking")
+st.write("Grant camera access to enable real-time eye-gaze tracking.")
 
 class EyeGazeProcessor(VideoProcessorBase):
     def __init__(self):
-        self.face_mesh = mp_face_mesh.FaceMesh(
+        # Initialize FaceMesh model instance once per session
+        self.face_mesh = FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
             min_detection_confidence=0.3,
@@ -24,11 +26,15 @@ class EyeGazeProcessor(VideoProcessorBase):
         results = self.face_mesh.process(rgb)
 
         if results.multi_face_landmarks:
+            h, w, _ = img.shape
             for landmark in results.multi_face_landmarks[0].landmark:
-                h, w, _ = img.shape
                 cx, cy = int(landmark.x * w), int(landmark.y * h)
                 cv2.circle(img, (cx, cy), 1, (0, 255, 0), -1)
 
-        return cv2.VideoFrame.from_ndarray(img, format="bgr24")
+        return frame.from_ndarray(img, format="bgr24")
 
-webrtc_streamer(key="gaze-mobile", video_processor_factory=EyeGazeProcessor)
+webrtc_streamer(
+    key="gazemate-mobile-stream",
+    video_processor_factory=EyeGazeProcessor,
+    media_stream_constraints={"video": True, "audio": False}
+)
