@@ -7,12 +7,11 @@ st.set_page_config(page_title="GazeMate Mobile", page_icon="👁️")
 st.title("👁️ GazeMate Mobile Web Tracking")
 st.write("Grant camera access to enable real-time eye-gaze tracking.")
 
-# Standard MediaPipe solutions import
-mp_face_mesh = mp.solutions.face_mesh
+# Import solutions directly after pinning mediapipe==0.10.14
+import mediapipe.python.solutions.face_mesh as mp_face_mesh
 
 class EyeGazeProcessor(VideoProcessorBase):
     def __init__(self):
-        # Initialize FaceMesh model instance
         self.face_mesh = mp_face_mesh.FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
