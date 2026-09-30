@@ -3,17 +3,17 @@ import mediapipe as mp
 import streamlit as st
 from streamlit_webrtc import VideoProcessorBase, webrtc_streamer
 
-# Direct import avoids dynamic namespace attribute errors on Streamlit Cloud
-from mediapipe.python.solutions.face_mesh import FaceMesh
-
 st.set_page_config(page_title="GazeMate Mobile", page_icon="👁️")
 st.title("👁️ GazeMate Mobile Web Tracking")
 st.write("Grant camera access to enable real-time eye-gaze tracking.")
 
+# Standard MediaPipe solutions import
+mp_face_mesh = mp.solutions.face_mesh
+
 class EyeGazeProcessor(VideoProcessorBase):
     def __init__(self):
-        # Initialize FaceMesh model instance once per session
-        self.face_mesh = FaceMesh(
+        # Initialize FaceMesh model instance
+        self.face_mesh = mp_face_mesh.FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
             min_detection_confidence=0.3,
