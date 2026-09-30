@@ -3,15 +3,13 @@ from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
 import cv2
 import mediapipe as mp
 
-# Import your existing gaze tracking logic
-from integrated_gaze import estimate_gaze
-
 st.title("GazeMate Mobile Web Tracking")
 st.write("Grant camera access to use eye tracking on your mobile browser.")
 
+# Explicit sub-module import to prevent attribute errors
 mp_face_mesh = mp.solutions.face_mesh
 
-class MobileGazeProcessor(VideoProcessorBase):
+class EyeGazeProcessor(VideoProcessorBase):
     def __init__(self):
         self.face_mesh = mp_face_mesh.FaceMesh(
             max_num_faces=1,
@@ -26,14 +24,11 @@ class MobileGazeProcessor(VideoProcessorBase):
         results = self.face_mesh.process(rgb)
 
         if results.multi_face_landmarks:
-            landmarks = results.multi_face_landmarks[0].landmark
-            # Call your project's custom gaze estimation function
-            gaze = estimate_gaze(landmarks, img.shape[1], img.shape[0])
-            
-            if gaze is not None:
-                # Draw gaze point feedback on the web camera feed
-                cv2.circle(img, (int(gaze[0]), int(gaze[1])), 10, (0, 255, 0), -1)
+            for landmark in results.multi_face_landmarks[0].landmark:
+                h, w, _ = img.shape
+                cx, cy = int(landmark.x * w), int(landmark.y * h)
+                cv2.circle(img, (cx, cy), 1, (0, 255, 0), -1)
 
         return cv2.VideoFrame.from_ndarray(img, format="bgr24")
 
-webrtc_streamer(key="gazemate-mobile", video_processor_factory=MobileGazeProcessor)
+webrtc_streamer(key="gaze-mobile", video_processor_factory=EyeGazeProcessor)
