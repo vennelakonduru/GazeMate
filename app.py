@@ -15,17 +15,20 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Custom CSS Styling
+# 2. Custom CSS Styling (High Contrast & Visible Controls)
 st.markdown("""
     <style>
-        .main { background-color: #0E1117; }
+        .stApp {
+            background-color: #0E1117;
+            color: #FFFFFF;
+        }
         .metric-card {
             background-color: #1E222D;
             border-radius: 10px;
             padding: 15px;
             border: 1px solid #2E3440;
             text-align: center;
-            margin-bottom: 10px;
+            color: #FFFFFF;
         }
         .title-text {
             font-size: 2.2rem;
@@ -33,23 +36,34 @@ st.markdown("""
             background: -webkit-linear-gradient(45deg, #00FFA3, #00B8D9);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 0px;
         }
         .info-box {
-            background-color: #131B26;
+            background-color: #1A2332;
             border-left: 4px solid #00FFA3;
-            padding: 12px 16px;
-            border-radius: 4px;
+            padding: 15px;
+            border-radius: 6px;
+            color: #FFFFFF !important;
+            font-size: 0.95rem;
+            line-height: 1.5;
             margin-bottom: 20px;
+        }
+        /* Make WebRTC action buttons clearly visible */
+        div[data-testid="stActionButton"] button,
+        .element-container button {
+            background-color: #00FFA3 !important;
+            color: #000000 !important;
+            font-weight: bold !important;
+            border-radius: 8px !important;
+            padding: 10px 20px !important;
         }
     </style>
 """, unsafe_allow_html=True)
 
+# 3. Global Initialization (Pre-loads model & bindings at script startup)
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
 
-# Singleton cached detector to avoid re-initializing C++ shared libraries in WebRTC threads
 @st.cache_resource
-def get_detector():
+def initialize_global_landmarker():
     req = urllib.request.urlopen(MODEL_URL)
     model_buffer = req.read()
     base_options = python.BaseOptions(model_asset_buffer=model_buffer)
@@ -60,10 +74,13 @@ def get_detector():
     )
     return vision.FaceLandmarker.create_from_options(options)
 
+# Initialize globally before WebRTC component spawns worker threads
+GLOBAL_DETECTOR = initialize_global_landmarker()
+
+# 4. WebRTC Frame Processor
 class EyeGazeProcessor(VideoProcessorBase):
     def __init__(self):
-        # Retrieve the pre-initialized single instance
-        self.detector = get_detector()
+        self.detector = GLOBAL_DETECTOR
 
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
@@ -80,7 +97,7 @@ class EyeGazeProcessor(VideoProcessorBase):
 
         return frame.from_ndarray(img, format="bgr24")
 
-# UI Layout Header
+# 5. App Header Layout
 col1, col2 = st.columns([1, 4])
 with col1:
     st.title("👁️")
@@ -90,15 +107,44 @@ with col2:
 
 st.markdown("---")
 
+# 6. High-Contrast Quick Start Guide
 st.markdown("""
 <div class="info-box">
-    <strong>📱 Quick Start Guide:</strong><br>
+    <strong style="color: #00FFA3;">📱 Quick Start Guide:</strong><br>
     1. Position your face clearly in front of your device camera.<br>
     2. Click <strong>START</strong> below and grant camera permissions.<br>
     3. Ensure good lighting for optimal landmark detection accuracy.
 </div>
 """, unsafe_allow_html=True)
 
+# 7. Live WebRTC Streamer
+st.subheader("📹 Live Camera Feed")
+
+webrtc_streamer(
+    key="gazemate-mobile-stream",
+    video_processor_factory=EyeGazeProcessor,
+    media_stream_constraints={
+        "video": {
+            # Prefers selfie camera on mobile, falls back to default camera on PC/laptop
+            "facingMode": {"ideal": "user"}
+        },
+        "audio": False
+    },
+    async_processing=True
+)
+
+st.markdown("---")
+
+# 8. Status Metrics Bar
+m1, m2, m3 = st.columns(3)
+with m1:
+    st.markdown('<div class="metric-card"><strong>Status</strong><br><span style="color:#00FFA3;">Ready</span></div>', unsafe_allow_html=True)
+with m2:
+    st.markdown('<div class="metric-card"><strong>Platform</strong><br>Mobile Web</div>', unsafe_allow_html=True)
+with m3:
+    st.markdown('<div class="metric-card"><strong>Backend</strong><br>MediaPipe Tasks</div>', unsafe_allow_html=True)
+
+# 9. Sidebar Controls
 with st.sidebar:
     st.header("⚙️ App Controls")
     st.success("MediaPipe Engine Active")
@@ -109,25 +155,3 @@ with st.sidebar:
     st.markdown("[👉 Download Windows Executable (.exe)](https://github.com/vennelakonduru/GazeMate/releases)")
     st.markdown("---")
     st.caption("GazeMate Project • Dual-Platform Deployment")
-
-st.subheader("📹 Live Camera Feed")
-
-webrtc_streamer(
-    key="gazemate-mobile-stream",
-    video_processor_factory=EyeGazeProcessor,
-    media_stream_constraints={
-        "video": {"facingMode": "user"},
-        "audio": False
-    },
-    async_processing=True
-)
-
-st.markdown("---")
-
-m1, m2, m3 = st.columns(3)
-with m1:
-    st.markdown('<div class="metric-card"><strong>Status</strong><br><span style="color:#00FFA3;">Ready</span></div>', unsafe_allow_html=True)
-with m2:
-    st.markdown('<div class="metric-card"><strong>Platform</strong><br>Mobile Web</div>', unsafe_allow_html=True)
-with m3:
-    st.markdown('<div class="metric-card"><strong>Backend</strong><br>MediaPipe Tasks</div>', unsafe_allow_html=True)
