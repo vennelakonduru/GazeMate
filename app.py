@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Custom CSS Styling (Dark Modern UI)
+# 2. Custom CSS Styling
 st.markdown("""
     <style>
         .main { background-color: #0E1117; }
@@ -45,25 +45,25 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Download Model Bytes directly into RAM (cached)
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
 
+# Singleton cached detector to avoid re-initializing C++ shared libraries in WebRTC threads
 @st.cache_resource
-def get_model_buffer():
+def get_detector():
     req = urllib.request.urlopen(MODEL_URL)
-    return req.read()
+    model_buffer = req.read()
+    base_options = python.BaseOptions(model_asset_buffer=model_buffer)
+    options = vision.FaceLandmarkerOptions(
+        base_options=base_options,
+        running_mode=vision.RunningMode.IMAGE,
+        num_faces=1
+    )
+    return vision.FaceLandmarker.create_from_options(options)
 
-# 4. WebRTC Video Processing Class
 class EyeGazeProcessor(VideoProcessorBase):
     def __init__(self):
-        model_buffer = get_model_buffer()
-        base_options = python.BaseOptions(model_asset_buffer=model_buffer)
-        options = vision.FaceLandmarkerOptions(
-            base_options=base_options,
-            running_mode=vision.RunningMode.IMAGE,
-            num_faces=1
-        )
-        self.detector = vision.FaceLandmarker.create_from_options(options)
+        # Retrieve the pre-initialized single instance
+        self.detector = get_detector()
 
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
@@ -80,10 +80,10 @@ class EyeGazeProcessor(VideoProcessorBase):
 
         return frame.from_ndarray(img, format="bgr24")
 
-# 5. UI Layout Header
+# UI Layout Header
 col1, col2 = st.columns([1, 4])
 with col1:
-    st.title("👁️️")
+    st.title("👁️")
 with col2:
     st.markdown('<p class="title-text">GazeMate AI</p>', unsafe_allow_html=True)
     st.caption("Real-time Mobile Web Eye-Gaze Tracking Subsystem")
@@ -99,7 +99,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 6. Sidebar Controls
 with st.sidebar:
     st.header("⚙️ App Controls")
     st.success("MediaPipe Engine Active")
@@ -111,7 +110,6 @@ with st.sidebar:
     st.markdown("---")
     st.caption("GazeMate Project • Dual-Platform Deployment")
 
-# 7. Live Camera Feed Section
 st.subheader("📹 Live Camera Feed")
 
 webrtc_streamer(
@@ -126,7 +124,6 @@ webrtc_streamer(
 
 st.markdown("---")
 
-# 8. Status Metrics Bar
 m1, m2, m3 = st.columns(3)
 with m1:
     st.markdown('<div class="metric-card"><strong>Status</strong><br><span style="color:#00FFA3;">Ready</span></div>', unsafe_allow_html=True)
