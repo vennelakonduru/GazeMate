@@ -1,4 +1,3 @@
-import os
 import urllib.request
 import cv2
 import numpy as np
@@ -19,11 +18,7 @@ st.set_page_config(
 # 2. Custom CSS Styling (Dark Modern UI)
 st.markdown("""
     <style>
-        /* Main Container Styling */
-        .main {
-            background-color: #0E1117;
-        }
-        /* Card Styling */
+        .main { background-color: #0E1117; }
         .metric-card {
             background-color: #1E222D;
             border-radius: 10px;
@@ -32,7 +27,6 @@ st.markdown("""
             text-align: center;
             margin-bottom: 10px;
         }
-        /* Custom Header Styling */
         .title-text {
             font-size: 2.2rem;
             font-weight: 700;
@@ -41,7 +35,6 @@ st.markdown("""
             -webkit-text-fill-color: transparent;
             margin-bottom: 0px;
         }
-        /* Instructions Banner */
         .info-box {
             background-color: #131B26;
             border-left: 4px solid #00FFA3;
@@ -52,27 +45,25 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Model Downloader & Cache
-MODEL_PATH = "face_landmarker.task"
+# 3. Download Model Bytes directly into RAM (cached)
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
 
 @st.cache_resource
-def load_landmarker():
-    if not os.path.exists(MODEL_PATH):
-        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-    
-    base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
-    options = vision.FaceLandmarkerOptions(
-        base_options=base_options,
-        running_mode=vision.RunningMode.IMAGE,
-        num_faces=1
-    )
-    return vision.FaceLandmarker.create_from_options(options)
+def get_model_buffer():
+    req = urllib.request.urlopen(MODEL_URL)
+    return req.read()
 
 # 4. WebRTC Video Processing Class
 class EyeGazeProcessor(VideoProcessorBase):
     def __init__(self):
-        self.detector = load_landmarker()
+        model_buffer = get_model_buffer()
+        base_options = python.BaseOptions(model_asset_buffer=model_buffer)
+        options = vision.FaceLandmarkerOptions(
+            base_options=base_options,
+            running_mode=vision.RunningMode.IMAGE,
+            num_faces=1
+        )
+        self.detector = vision.FaceLandmarker.create_from_options(options)
 
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
@@ -92,14 +83,13 @@ class EyeGazeProcessor(VideoProcessorBase):
 # 5. UI Layout Header
 col1, col2 = st.columns([1, 4])
 with col1:
-    st.title("👁️")
+    st.title("👁️️")
 with col2:
     st.markdown('<p class="title-text">GazeMate AI</p>', unsafe_allow_html=True)
     st.caption("Real-time Mobile Web Eye-Gaze Tracking Subsystem")
 
 st.markdown("---")
 
-# Instructions Box
 st.markdown("""
 <div class="info-box">
     <strong>📱 Quick Start Guide:</strong><br>
@@ -109,17 +99,15 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 6. Sidebar Controls & Links
+# 6. Sidebar Controls
 with st.sidebar:
     st.header("⚙️ App Controls")
     st.success("MediaPipe Engine Active")
     st.info("Resolution: Standard Mobile WebRTC")
-    
     st.markdown("---")
     st.header("💻 Desktop Version")
     st.write("Need system-wide desktop cursor control?")
     st.markdown("[👉 Download Windows Executable (.exe)](https://github.com/vennelakonduru/GazeMate/releases)")
-    
     st.markdown("---")
     st.caption("GazeMate Project • Dual-Platform Deployment")
 
