@@ -5,7 +5,7 @@ import streamlit as st
 from streamlit_webrtc import VideoProcessorBase, webrtc_streamer
 import mediapipe as mp
 
-# 1. Page Configuration
+#1. Page Configuration
 st.set_page_config(
     page_title="GazeMate AI | Mobile Tracking",
     page_icon="👁️",
